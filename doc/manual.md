@@ -1,5 +1,5 @@
 ---
-title: "Ćwiczenie 19: Magistrala SPI na przykładzie akcelerometru"
+title: "Ćwiczenie 20: Gra sterowana czujnikiem ruchu"
 subtitle: "Instrukcja laboratorium"
 footer-left: "Instrukcja laboratorium"
 author: [Mariusz Chilmon <<mariusz.chilmon@ctm.gdynia.pl>>]
@@ -32,129 +32,57 @@ header-includes: |
     font=\footnotesize,
 }
 
-> I'm not a great programmer; I'm just a good programmer with great habits.
+> Talk is cheap. Show me the code.
 >
-> — _Kent Beck_
+> — _Linus Torvalds_
 
 # Cel ćwiczenia
 
-Celem ćwiczenia jest zapoznanie się z:
-
-* działaniem magistrali SPI,
-* odczytem danych z akcelerometru.
+Celem ćwiczenia jest praktyczne ćwiczenie umiejętności odnajdywania w kodzie źródłowym implementacji poszczególnych funkcji systemu mikroprocesorowego i ich poprawy.
 
 # Uruchomienie programu wyjściowego
 
 1. Podłącz płytkę _LCD Keypad Shield_ do _Arduino Uno_.
 1. Podłącz akcelerometr.
-1. Na wyświetlaczu wyświetlane są zerowe wartości parametrów.
+1. W pierwszej linii wyświetlacza widoczny jest licznik zdobytych punktów.
+1. W drugiej linii wyświetlacza na pierwszej pozycji znajduje się statek kosmiczny, który jest bohaterem gry, a na prawo od niego wrogie pojazdy, których należy unikać, aby kontynuować grę. Zderzenie kończy rozgrywkę.
+1. Program wyjściowy nie pozwala poruszać statkiem.
 
+\DefineLCDchar{player}{00000011001101001001110100110000000}
+\DefineLCDchar{enemy}{00000111111101110101110111111100000}
 \begin{center}
 \LCD{2}{16}
-    |       {|}{|}       |
-    |00 0x0000=     0|
-\captionof{figure}{Wyjściowy stan wyświetlacza}
+    |           01042|
+    |{player}     {enemy}      {enemy}  |
+\captionof{figure}{Przykładowy stan gry. Uwagę przykuwają, mimo rachitycznej grafiki, znakomicie zamodelowani bohaterowie i bezkompromisowa wizualizacja świata z gatunku \textit{space opera}.}
 \end{center}
-
-Do płytki podłączony jest układ scalony MPU-6500 firmy InvenSense (obecnie wchodzącej w skład TDK), który jest czujnikiem typu MEMS (_Microelectromechanical System_), integrującym obwody elektroniczne z&nbsp;czujnikami mechanicznymi: trzyosiowym akcelerometrem i trzyosiowym żyroskopem. Umożliwiają one pomiar przyspieszenia (akcelerometry) oraz prędkości obrotowej (żyroskopy) w&nbsp;trzech ortogonalnych osiach.
-
-![Orientacja osi w czujniku MPU-6500](axes.png){width=200px}
-
-![Budowa wewnętrzna podobnego czujnika — MPU-6050. Obok struktur elektronicznych widoczne są elementy mechaniczne, dokonujące pomiaru](dies.jpg){width=500px}
-
-\awesomebox[purple]{2pt}{\faMicrochip}{purple}{Akcelerometry znajdują bardzo szerokie zastosowanie: oceniają przechył telefonu komórkowego, stabilizują obraz w aparatach fotograficznych, zliczają kroki w~smartwatchu, uruchamiają poduszki powietrzne w~samochodzie czy mierzą przeciążenia mózgu graczy NHL po uderzeniu krążkiem hokejowym (do tego zastosowania firma STM musiała poszerzyć zakres pomiarowy swoich czujników).}
-
-Dzięki zasadzie równoważności, która mówi, że jednorodone statyczne pole grawitacyjne jest dla obserwatora nieodróżnialne od ruchu z przyspieszeniem (_vide_ pojęcie przyspieszenia ziemskiego), akcelerometr nadaje się również do pomiaru siły pola grawitacyjnego. Z kolei siła grawitacji w&nbsp;określonej osi jest zależna od nachylenia tej osi do np. powierzchni Ziemi, co łatwo możemy zaobserwować przechylając stół — przy pewnym kącie nachylenia składowa siły grawitacji dociskająca przedmioty do powierzchni stołu staje się zbyt mała do ich utrzymania[^1].
-
-[^1]: Jest to zagadnienie powszechnie wykorzystywane do dręczenia uczniów i studentów, gdyż jest praktycznym przykładem użycia trygonometrii.
-
-Wobec powyższego akcelerometr zmienia wskazania w zakresie $\pm 1\ g$ w zależności od nachylenia danej osi do powierzchni Ziemi.
 
 # Zadanie podstawowe
 
-Czujnik MPU-6500 może komunikować się z mikrokontrolerem za pomocą magistrali I²C lub SPI. Ze względu na dostępne wyprowadzenia mikrokontrolera użyto interfejsu SPI.
-
-Celem zadania podstawowego jest skonfigurowanie SPI i odczytanie z czujnika numeru identyfikacyjnego.
+Celem zadania podstawowego jest sterowanie pojazdem kosmicznym przez obrót czujnika.
 
 ## Wymagania funkcjonalne
 
-1. Na wyświetlaczu widoczny jest identyfikator czujnika.
+1. Obrót czujnika powoduje skok pojazdu do góry. Po chwili pojazd automatycznie powraca na pozycję wyjściową.
 
 ## Modyfikacja programu
 
-### Konfiguracja interfejsu SPI
+W metodzie `Game::loop()` odczytaj pomiar z żyroskopu za pomocą wywołania `gyroscope.measure()`. Określ wartość graniczną prędkości kątowej, przy której uznasz, że należy wykonać skok główną postacią gry, ustawiając zmienną `hop` na wartość `HOP_UP`.
 
-Interfejs SPI (_Serial Peripheral Interface_) jest prostym interfejsem, w którym na jednym zboczu zegara kontroler magistrali (_master_) i układ peryferyjny (_slave_) wystawiają dane, a na przeciwnym — odczytują je. Transmisja zawsze jest możliwa w obie strony, choć nie zawsze oba urządzenia rzeczywiście wystawiają dane (jeżeli nie — odbiorca ignoruje przychodzące bity).
-
-Transmisja z kontrolera do układu peryferyjnego zachodzi na linii _MOSI_ (_Master Out, Slave In_) zaś w&nbsp;drugą stronę — na linii MISO (_Master In, Slave Out_). Kontroler magistrali odpowiada za generowanie sygnału zegarowego. Steruje również liniami _CS_ (_Chip Select_). Każdy układ peryferyjny ma swoją linię _CS_, na której stan aktywny (logiczne 0) oznacza, że dane urządzenie zostało przez kontroler wybrane do komunikacji (pozostałe linie są współdzielone). Nawet jeżeli komunikujemy się tylko z jednym urządzeniem peryferyjnym, wskazane jest sterowanie linią _CS_, gdyż łatwo wtedy wskazać początek i&nbsp;koniec transmisji.
-
-Mimo zasadniczej prostoty interfejs SPI ma wiele trybów pracy, różniących się:
-
-* polaryzacją zegara (stanem zegara w stanie uśpienia),
-* fazą zegara (zboczem, na którym są odczytywane dane),
-* kolejnością bitów w bajcie,
-* szybkością zegara.
-
-W celu skonfigurowania interfejsu uzupełnij metodę `SPI::initialize()` o ustawienie odpowiednich bitów w rejestrze `SPCR`. Ustaw bity `SPE` (_SPI Enable_) oraz `MSTR` (_Master/Slave Select_), aby włączyć SPI w trybie _master_, a pozostałe bity ustaw zgodnie ze sprawozdaniem z ćwiczenia.
-
-### Implementacja transferu bajtu przez SPI
-
-Uzupełnij metodę `Spi::transfer()` o następujące kroki:
-
-1. Wpisanie wysyłanego bajtu do rejestru `SPDR`.
-1. Oczekiwanie na ustawienie flagi `SPIF`, świadczącej o zakończeniu transferu.
-1. Zwrócenie odebranego bajtu z rejestru `SPDR`.
-
-Ustawienie flagi można sprawdzać w pustej pętli:
-
-```
-while (bit_is_clear(SPSR, SPIF)) ;
-```
-
-### Implementacja odczytu rejestru
-
-Uzupełnij metodę `Spi::readRegister()` o następujące kroki:
-
-1. Ustawienie linii _CS_ za pomocą `gpio.chipSelect(true)`, co ustawia odpowiedni pin w stan niski (aktywny).
-1. Wysłanie bajtu z adresem za pomocą wcześniej uzupełnionej metody `Spi::transfer()`. Wysyłany bajt musi mieć dodatkowo ustawiony najstarszy bit, co oznacza operację odczytu.
-1. Zapamiętanie w zmiennej bajtu zwróconego przez drugie wywołanie metody `Spi::transfer()`.
-1. Zwolnienie linii _CS_ za pomocą `gpio.chipSelect(false)`, co ustawia odpowiedni pin w&nbsp;stan wysoki (nieaktywny).
-1. Zwrócenie odebranego bajtu.
-
-### Odczytanie wartości rejestru _Who Am I_
-
-W metodzie `Accelerometer::whoAmI()` wywołaj metodę `Spi::readRegister()` jako argument podając adres rejestru _Who Am I_. Na początku drugiej linii wyświetlacza powinien być widoczny identyfikator czujnika.
-
-\awesomebox[violet]{2pt}{\faBook}{violet}{Adresy rejestrów znajdziesz w mapie rejestrów czujnika.}
+\awesomebox[teal]{2pt}{\faCode}{teal}{Pamiętaj o użyciu bloku \lstinline{ATOMIC\_BLOCK(ATOMIC\_RESTORESTATE) \{ \}}, aby uniknąć problemów z operacjami na zmiennych współdzielonych między pętlą główną, a przerwaniami.}
 
 # Zadanie rozszerzone
 
+Celem zadania rozszerzonego jest umożliwienie wznowienia rozgrywki po wciśnięciu przycisku _RIGHT_.
+
 ## Wymagania funkcjonalne
 
-1. Odczytywany jest pomiar przyspieszenia w osi X.
-1. Wychylenie czujnika jest wizualizowane w pierwszej linii wyświetlacza.
+1. Przyciskiem _RIGHT_ można rozpocząć nową rozgrywkę.
 
 ## Modyfikacja programu
 
-### Odczyt podwójnego rejestru
+W metodzie `Game::loop()` odczytaj stan klawiatury i przy wciśniętym przycisku _RIGHT_ wywołaj metodę `start()`. Dodatkowo możesz sprawdzać stan zmiennej `stop` (zerowanej przez `start()`) , aby przytrzymanie przycisku nie powodowowało wielokrotnego wywoływania restartu gry.
 
-Uzupełnij metodę `Spi::readRegisterWord()` tak, by odczytywała dwa kolejne bajty. W tym celu po wysłaniu bajtu adresu, jak w funkcji `Spi::readRegister()` należy odczytać nie jeden, ale dwa bajty, a następnie zsumować je w zmiennej 16-bitowej, używając operatora przesunięcia bitowego o 8, czyli `<< 8`.
+\awesomebox[violet]{2pt}{\faBook}{violet}{Odczytaj ze schematów ideowych, do którego pinu mikrokontrolera podłączona jest klawiatura.}
 
-### Odczyt pomiaru w osi X
-
-Uzupełnij metodę `Accelerometer::measure()` tak, by z użyciem wcześniej przygotowanej funkcji `Spi::readRegisterWord()` odczytywała pomiar w osi X. Na ekranie powinien być widoczny pomiar w postaci szesnastkowej i dziesiętnej.
-
-### Zmniejsze częstotliwości pomiaru
-
-W celu poprawienia czytelności odczytu na wyświetlaczu zmniejsz częstotliwość pracy czujnika, ustawiając na końcu funkcji `Accelerometer::initialize()` maksymalną wartość w rejestrze _Sample Rate Divider_. Funkcja do zapisu rejestrów jest już gotowa.
-
-### Wizualizacja pomiaru za pomocą bargrafu
-
-W pętli głównej `mainLoop()` zwizualizuj wychylenie czujnika, rysując w pierwszej linii wyświetlacza myślniki odpowiednio po lewej lub prawej stronie znacznika \texttt{||} proporcjonalnie do wychylenia. Zakres pracy i rozdzielczość tego bargrafu dobierz wedle uznania.
-
-\begin{center}
-\LCD{2}{16}
-    |     --{|}{|}       |
-    |70 0xfec6=  -314|
-\captionof{figure}{Przykładowy stan wyświetlacza}
-\end{center}
+\awesomebox[purple]{2pt}{\faMicrochip}{purple}{Nie musisz korzystać z ADC, aby sprawdzić stan przycisku. Ponieważ inne przyciski nie będą wykorzystywane, wystarczy odróżnić stan niski od wysokiego, nie ma potrzeby mierzyć dokładnego napięcia z klawiatury.}
