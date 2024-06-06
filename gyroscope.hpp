@@ -5,9 +5,9 @@
 /**
  * Sterownik akcelerometru/żyroskopu MPU-6500.
  */
-struct Accelerometer {
+struct Gyroscope {
 	/**
-	 * Inicjalizuje akcelerometr i szynę danych.
+	 * Inicjalizuje żyroskop i szynę danych.
 	 */
 	void initialize() const;
 
@@ -27,6 +27,6 @@ struct Accelerometer {
 };
 
 /**
- * Instancja sterownika akcelerometru.
+ * Instancja sterownika żyroskopu.
  */
-extern const Accelerometer accelerometer;
+extern const Gyroscope gyroscope;

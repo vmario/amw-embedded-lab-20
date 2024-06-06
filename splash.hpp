@@ -3,13 +3,14 @@
 #include <stdint.h>
 
 constexpr uint8_t DISPLAY_LENGTH{16}; ///< Szerokość wyświetlacza.
+constexpr char DISPLAY_CODE_ELLIPSIS{0}; ///< Kod wielokropka.
 
 /**
- * Menu wyświetlacza.
+ * Splash.
  */
-struct Menu {
+struct Splash {
 	/**
-	 * Inicjalizacja menu.
+	 * Inicjalizacja splasha.
 	 */
 	void initialize() const;
 
@@ -19,4 +20,4 @@ struct Menu {
 	void showProgress() const;
 };
 
-extern Menu menu; ///< Globalna instancja menu.
+extern Splash splash; ///< Globalna instancja splasha.

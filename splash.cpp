@@ -1,21 +1,23 @@
-#include "menu.hpp"
+#include "splash.hpp"
 
 #include "lcdDisplay.hpp"
 
 #include <util/delay.h>
 
-Menu menu;
+Splash splash;
 
-void Menu::initialize() const
+void Splash::initialize() const
 {
 	lcdDisplay.clear();
 	lcdDisplay.goTo(0, 0);
 	lcdDisplay.write(" Initializing   ");
+	lcdDisplay.goTo(0, 13);
+	lcdDisplay.write(DISPLAY_CODE_ELLIPSIS);
 	showProgress();
 	lcdDisplay.clear();
 }
 
-void Menu::showProgress() const
+void Splash::showProgress() const
 {
 	lcdDisplay.goTo(1, 0);
 	for (int i{0}; i < DISPLAY_LENGTH; ++i) {

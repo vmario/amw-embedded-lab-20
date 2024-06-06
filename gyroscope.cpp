@@ -1,21 +1,25 @@
-#include "accelerometer.hpp"
+#include "gyroscope.hpp"
 
+#include "lcdDisplay.hpp"
 #include "gpio.hpp"
 #include "spi.hpp"
 
 #include <avr/io.h>
 #include <util/delay.h>
 
-const Accelerometer accelerometer;
+const Gyroscope gyroscope;
 
 /**
- * Adresy rejestrów akcelerometru.
+ * Adresy rejestrów żyroskopu.
  */
 enum REGISTER {
 	REGISTER_SMPLRT_DIV = 25,
 	REGISTER_CONFIGURATION = 26,
 	REGISTER_ACCEL_CONFIG_2 = 29,
 	REGISTER_ACCEL_XOUT_H = 59,
+	REGISTER_GYRO_XOUT_H = 67,
+	REGISTER_GYRO_YOUT_H = 69,
+	REGISTER_GYRO_ZOUT_H = 71,
 	REGISTER_SIGNAL_PATH_RESET = 104,
 	REGISTER_USER_CTRL = 106,
 	REGISTER_POWER_MGMT_1 = 107,
@@ -30,7 +34,7 @@ enum {
 	SIGNAL_RESET = _BV(2) | _BV(1) | _BV(0),
 };
 
-void Accelerometer::initialize() const
+void Gyroscope::initialize() const
 {
 	gpio.initialize();
 	spi.initialize();
@@ -41,16 +45,27 @@ void Accelerometer::initialize() const
 	spi.writeRegister(REGISTER_SIGNAL_PATH_RESET, SIGNAL_RESET);
 	_delay_ms(100);
 
+	if (whoAmI() != 0x70) {
+		lcdDisplay.goTo(0, 3);
+		lcdDisplay.write("Incorrect");
+		lcdDisplay.goTo(1, 3);
+		lcdDisplay.write("sensor ID");
+		while (true) ;
+	}
+
 	spi.writeRegister(REGISTER_CONFIGURATION, 6);
 	spi.writeRegister(REGISTER_ACCEL_CONFIG_2, 6);
+#if 0
+	spi.writeRegister(REGISTER_SMPLRT_DIV, 255);
+#endif
 }
 
-uint8_t Accelerometer::whoAmI() const
+uint8_t Gyroscope::whoAmI() const
 {
-	return 0;
+	return spi.readRegister(REGISTER_WHO_AM_I);
 }
 
-int16_t Accelerometer::measure() const
+int16_t Gyroscope::measure() const
 {
-	return 0;
+	return spi.readRegisterWord(REGISTER_GYRO_ZOUT_H);
 }
